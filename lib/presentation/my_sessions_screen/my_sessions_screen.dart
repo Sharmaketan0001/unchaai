@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:sizer/sizer.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/app_export.dart';
+import '../../services/auth_service.dart';
+import '../../services/database_service.dart';
+import '../../services/realtime_service.dart';
 import '../../widgets/custom_icon_widget.dart';
 import './widgets/empty_state_widget.dart';
 import './widgets/session_card_widget.dart';
@@ -28,11 +32,19 @@ class _MySessionsScreenState extends State<MySessionsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
+  final _authService = AuthService.instance;
+  final _databaseService = DatabaseService.instance;
+  final _realtimeService = RealtimeService.instance;
   String _searchQuery = '';
   bool _isRefreshing = false;
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _allSessions = [];
+  List<Map<String, dynamic>> _upcomingSessions = [];
+  List<Map<String, dynamic>> _completedSessions = [];
+  RealtimeChannel? _bookingsSubscription;
 
   // Mock data for sessions
-  final List<Map<String, dynamic>> _upcomingSessions = [
+  final List<Map<String, dynamic>> _upcomingSessionsMock = [
     {
       "id": "session_001",
       "mentorName": "Dr. Priya Sharma",
@@ -86,7 +98,7 @@ class _MySessionsScreenState extends State<MySessionsScreen>
     },
   ];
 
-  final List<Map<String, dynamic>> _completedSessions = [
+  final List<Map<String, dynamic>> _completedSessionsMock = [
     {
       "id": "session_004",
       "mentorName": "Vikram Singh",
@@ -127,21 +139,90 @@ class _MySessionsScreenState extends State<MySessionsScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadSessions();
+    _subscribeToBookings();
   }
 
   @override
   void dispose() {
+    final user = _authService.currentUser;
+    if (user != null) {
+      _realtimeService.unsubscribe('user_bookings_${user.id}');
+    }
     _tabController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
+  void _subscribeToBookings() {
+    final user = _authService.currentUser;
+    if (user == null) return;
+
+    _bookingsSubscription = _realtimeService.subscribeToUserBookings(
+      userId: user.id,
+      onInsert: (booking) {
+        setState(() {
+          _allSessions.add(booking);
+          _categorizeSessions();
+        });
+      },
+      onUpdate: (booking) {
+        setState(() {
+          final index = _allSessions.indexWhere(
+            (s) => s['id'] == booking['id'],
+          );
+          if (index != -1) {
+            _allSessions[index] = booking;
+            _categorizeSessions();
+          }
+        });
+      },
+      onDelete: (booking) {
+        setState(() {
+          _allSessions.removeWhere((s) => s['id'] == booking['id']);
+          _categorizeSessions();
+        });
+      },
+    );
+  }
+
+  Future<void> _loadSessions() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final user = _authService.currentUser;
+      if (user == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final sessions = await _databaseService.getUserSessions(user.id);
+      setState(() {
+        _allSessions = sessions;
+        _categorizeSessions();
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading sessions: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _categorizeSessions() {
+    _upcomingSessions = _allSessions.where((session) {
+      final status = session['status'] as String?;
+      return status == 'pending' || status == 'confirmed';
+    }).toList();
+
+    _completedSessions = _allSessions.where((session) {
+      final status = session['status'] as String?;
+      return status == 'completed' || status == 'cancelled';
+    }).toList();
+  }
+
   Future<void> _handleRefresh() async {
     setState(() => _isRefreshing = true);
-
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 1));
-
+    await _loadSessions();
     setState(() => _isRefreshing = false);
   }
 
@@ -150,9 +231,15 @@ class _MySessionsScreenState extends State<MySessionsScreen>
   ) {
     if (_searchQuery.isEmpty) return sessions;
 
-    return sessions.where((session) {
-      final mentorName = (session["mentorName"] as String).toLowerCase();
-      final subject = (session["subject"] as String).toLowerCase();
+    return sessions.where((booking) {
+      final session = booking['sessions'] as Map<String, dynamic>?;
+      final mentor = session?['mentors'] as Map<String, dynamic>?;
+      final userProfile = mentor?['user_profiles'] as Map<String, dynamic>?;
+
+      final mentorName = (userProfile?['full_name'] ?? '')
+          .toString()
+          .toLowerCase();
+      final subject = (session?['title'] ?? '').toString().toLowerCase();
       final query = _searchQuery.toLowerCase();
       return mentorName.contains(query) || subject.contains(query);
     }).toList();
@@ -384,6 +471,13 @@ class _MySessionsScreenState extends State<MySessionsScreen>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Column(
       children: [

@@ -4,6 +4,10 @@ import 'package:intl/intl.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../core/app_export.dart';
+import '../../services/auth_service.dart';
+import '../../services/database_service.dart';
+import '../../services/notification_service.dart';
+import '../../services/razorpay_service.dart';
 import './widgets/card_input_widget.dart';
 import './widgets/order_summary_widget.dart';
 import './widgets/payment_method_widget.dart';
@@ -26,9 +30,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   Map<String, dynamic>? _bookingData;
 
+  final _notificationService = NotificationService.instance;
+  final _authService = AuthService.instance;
+  final _databaseService = DatabaseService.instance;
+  final _razorpayService = RazorpayService.instance;
+
   @override
   void initState() {
     super.initState();
+    _razorpayService.initialize();
     _startSessionTimeout();
   }
 
@@ -73,17 +83,74 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
     HapticFeedback.mediumImpact();
 
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final user = _authService.currentUser;
+      if (user == null) {
+        _showErrorDialog('Please login to continue');
+        setState(() => _isProcessing = false);
+        return;
+      }
 
-    if (mounted) {
-      setState(() => _isProcessing = false);
+      final basePrice =
+          (_bookingData?['sessionPrice'] as num?)?.toDouble() ?? 6000.0;
+      final platformFee = basePrice * 0.05;
+      final gst = (basePrice + platformFee) * 0.18;
+      final totalAmount = basePrice + platformFee + gst;
 
-      final random = DateTime.now().millisecond % 10;
-      if (random < 8) {
-        HapticFeedback.heavyImpact();
-        _showSuccessDialog();
-      } else {
-        _showErrorDialog(_getRandomError());
+      // Create order ID
+      final orderId = await _razorpayService.createOrder(
+        amount: totalAmount,
+        currency: 'INR',
+        receipt: 'rcpt_${DateTime.now().millisecondsSinceEpoch}',
+      );
+
+      // Open Razorpay checkout
+      await _razorpayService.openCheckout(
+        amount: totalAmount,
+        orderId: orderId,
+        description:
+            'Booking for ${_bookingData?['mentorData']?['name'] ?? 'Mentor'}',
+        onSuccess: (response) async {
+          // Save transaction to database
+          try {
+            await _razorpayService.saveTransaction(
+              userId: user.id,
+              paymentId: response['payment_id'],
+              orderId: response['order_id'],
+              amount: totalAmount,
+              status: 'success',
+              paymentMethod: _selectedPaymentMethod,
+              metadata: {
+                'mentor_id': _bookingData?['mentorData']?['id'],
+                'package_name': _bookingData?['packageName'],
+                'session_date': _bookingData?['selectedDate']?.toString(),
+                'session_time': _bookingData?['selectedTime'],
+              },
+            );
+
+            if (mounted) {
+              setState(() => _isProcessing = false);
+              HapticFeedback.heavyImpact();
+              _showSuccessDialog();
+            }
+          } catch (e) {
+            if (mounted) {
+              setState(() => _isProcessing = false);
+              _showErrorDialog('Payment successful but failed to save: $e');
+            }
+          }
+        },
+        onError: (error) {
+          if (mounted) {
+            setState(() => _isProcessing = false);
+            _showErrorDialog(error);
+          }
+        },
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        _showErrorDialog('Failed to process payment: ${e.toString()}');
       }
     }
   }

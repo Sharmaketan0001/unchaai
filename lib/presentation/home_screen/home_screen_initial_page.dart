@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:sizer/sizer.dart';
 
-import '../../core/app_export.dart';
-import '../../widgets/custom_icon_widget.dart';
+import '../../services/auth_service.dart';
+import '../../services/database_service.dart';
 import './widgets/ad_banner_widget.dart';
 import './widgets/categories_grid_widget.dart';
 import './widgets/featured_mentors_carousel_widget.dart';
@@ -18,69 +18,103 @@ class HomeScreenInitialPage extends StatefulWidget {
 }
 
 class _HomeScreenInitialPageState extends State<HomeScreenInitialPage> {
-  bool _isRefreshing = false;
+  final _authService = AuthService.instance;
+  final _databaseService = DatabaseService.instance;
+
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _featuredMentors = [];
+  List<Map<String, dynamic>> _upcomingSessions = [];
+  List<Map<String, dynamic>> _categories = [];
+  Map<String, dynamic>? _userProfile;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final user = _authService.currentUser;
+      if (user != null) {
+        final profile = await _authService.getUserProfile(user.id);
+        final sessions = await _databaseService.getUserUpcomingSessions(
+          user.id,
+        );
+        final mentors = await _databaseService.getFeaturedMentors();
+        final categories = await _databaseService.getCategories();
+
+        setState(() {
+          _userProfile = profile;
+          _upcomingSessions = sessions;
+          _featuredMentors = mentors;
+          _categories = categories;
+          _isLoading = false;
+        });
+      } else {
+        // Load public data only
+        final mentors = await _databaseService.getFeaturedMentors();
+        final categories = await _databaseService.getCategories();
+
+        setState(() {
+          _featuredMentors = mentors;
+          _categories = categories;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading data: $e');
+      setState(() => _isLoading = false);
+    }
+  }
 
   Future<void> _handleRefresh() async {
-    setState(() => _isRefreshing = true);
-    await Future.delayed(const Duration(milliseconds: 800));
-    setState(() => _isRefreshing = false);
+    await _loadData();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _handleRefresh,
-          color: theme.colorScheme.primary,
           child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               SliverToBoxAdapter(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const GreetingHeaderWidget(),
+                    GreetingHeaderWidget(),
                     SizedBox(height: 2.h),
-                    const MentorshipCtaWidget(),
+                    AdBannerWidget(),
                     SizedBox(height: 3.h),
-                    const FeaturedMentorsCarouselWidget(),
-                    SizedBox(height: 2.h),
-                    const AdBannerWidget(),
+                    if (_upcomingSessions.isNotEmpty) ...[
+                      UpcomingSessionsWidget(sessions: _upcomingSessions),
+                      SizedBox(height: 3.h),
+                    ],
+                    CategoriesGridWidget(categories: _categories),
                     SizedBox(height: 3.h),
-                    const CategoriesGridWidget(),
+                    FeaturedMentorsCarouselWidget(mentors: _featuredMentors),
                     SizedBox(height: 3.h),
-                    const UpcomingSessionsWidget(),
-                    SizedBox(height: 2.h),
+                    MentorshipCtaWidget(),
+                    SizedBox(height: 3.h),
                   ],
                 ),
               ),
             ],
           ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.of(
-            context,
-            rootNavigator: true,
-          ).pushNamed('/mentor-listing-screen');
-        },
-        icon: CustomIconWidget(
-          iconName: 'search',
-          color: theme.colorScheme.onPrimary,
-          size: 20,
-        ),
-        label: Text(
-          'Find Mentor',
-          style: theme.textTheme.labelLarge?.copyWith(
-            color: theme.colorScheme.onPrimary,
-          ),
-        ),
-        backgroundColor: theme.colorScheme.primary,
       ),
     );
   }

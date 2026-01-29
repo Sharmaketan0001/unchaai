@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../core/app_export.dart';
+import '../../services/notification_service.dart';
 import '../../widgets/custom_icon_widget.dart';
 import './widgets/action_buttons_widget.dart';
 import './widgets/contact_info_widget.dart';
@@ -24,6 +25,8 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
+
+  final _notificationService = NotificationService.instance;
 
   // Mock session data
   final Map<String, dynamic> _sessionData = {

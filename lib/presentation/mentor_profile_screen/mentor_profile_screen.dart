@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:sizer/sizer.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/app_export.dart';
+import '../../services/database_service.dart';
+import '../../services/realtime_service.dart';
 import './widgets/about_tab_widget.dart';
 import './widgets/availability_tab_widget.dart';
 import './widgets/experience_tab_widget.dart';
@@ -19,137 +22,30 @@ class _MentorProfileScreenState extends State<MentorProfileScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ScrollController _scrollController = ScrollController();
+  final _databaseService = DatabaseService.instance;
+  final _realtimeService = RealtimeService.instance;
   bool _showElevation = false;
-
-  // Mock mentor data
-  final Map<String, dynamic> mentorData = {
-    "id": "mentor_001",
-    "name": "Dr. Priya Sharma",
-    "title": "Senior Data Scientist & AI Researcher",
-    "photo":
-        "https://img.rocket.new/generatedImages/rocket_gen_img_137f6918e-1763298586672.png",
-    "semanticLabel":
-        "Professional headshot of an Indian woman with long dark hair wearing a navy blazer, smiling confidently against a neutral background",
-    "rating": 4.8,
-    "reviewCount": 247,
-    "hourlyRate": 2500,
-    "sessionDuration": 60,
-    "totalStudents": 1250,
-    "responseTime": "Within 2 hours",
-    "expertise": [
-      "Machine Learning",
-      "Deep Learning",
-      "Python",
-      "TensorFlow",
-      "Data Science",
-      "AI Ethics",
-    ],
-    "bio":
-        "With over 12 years of experience in AI and machine learning, I've helped thousands of students transition into data science careers. I specialize in making complex concepts accessible and providing practical, industry-relevant guidance. My teaching approach combines theoretical foundations with hands-on projects that mirror real-world challenges. I've worked with leading tech companies including Google and Microsoft, and I'm passionate about democratizing AI education.",
-    "education": [
-      {
-        "degree": "Ph.D. in Computer Science",
-        "institution": "IIT Delhi",
-        "year": "2015",
-        "specialization": "Artificial Intelligence",
-      },
-      {
-        "degree": "M.Tech in Data Science",
-        "institution": "IIT Bombay",
-        "year": "2011",
-        "specialization": "Machine Learning",
-      },
-    ],
-    "experience": [
-      {
-        "title": "Senior Data Scientist",
-        "company": "Google India",
-        "duration": "2018 - Present",
-        "description":
-            "Leading AI research initiatives and mentoring junior data scientists",
-      },
-      {
-        "title": "Machine Learning Engineer",
-        "company": "Microsoft",
-        "duration": "2015 - 2018",
-        "description": "Developed ML models for cloud-based AI services",
-      },
-    ],
-    "achievements": [
-      "Published 15+ research papers in top AI conferences",
-      "Google AI Impact Award 2022",
-      "Featured speaker at PyData India 2023",
-    ],
-    "reviews": [
-      {
-        "studentName": "Rahul Kumar",
-        "rating": 5.0,
-        "comment":
-            "Dr. Sharma's guidance was instrumental in my career transition. Her practical approach and industry insights are invaluable.",
-        "date": "2026-01-15",
-        "verified": true,
-        "avatar":
-            "https://img.rocket.new/generatedImages/rocket_gen_img_1f49e613a-1763296527029.png",
-        "semanticLabel":
-            "Profile photo of a young Indian man with short black hair wearing a blue shirt, smiling at camera",
-      },
-      {
-        "studentName": "Ananya Patel",
-        "rating": 5.0,
-        "comment":
-            "Best mentor I've had! She explains complex ML concepts in such a simple way. Highly recommend for anyone serious about data science.",
-        "date": "2026-01-10",
-        "verified": true,
-        "avatar":
-            "https://img.rocket.new/generatedImages/rocket_gen_img_11ca0f56f-1763296594616.png",
-        "semanticLabel":
-            "Profile photo of a young Indian woman with long dark hair wearing a white top, smiling warmly",
-      },
-      {
-        "studentName": "Vikram Singh",
-        "rating": 4.5,
-        "comment":
-            "Great session on deep learning fundamentals. Would have loved more time for Q&A but overall excellent experience.",
-        "date": "2026-01-05",
-        "verified": true,
-        "avatar":
-            "https://img.rocket.new/generatedImages/rocket_gen_img_1f49e613a-1763296527029.png",
-        "semanticLabel":
-            "Profile photo of a young Indian man with beard and short hair wearing a grey t-shirt outdoors",
-      },
-    ],
-    "availability": {
-      "timezone": "IST",
-      "slots": [
-        {
-          "date": "2026-02-01",
-          "times": ["10:00 AM", "2:00 PM", "4:00 PM"],
-        },
-        {
-          "date": "2026-02-02",
-          "times": ["11:00 AM", "3:00 PM"],
-        },
-        {
-          "date": "2026-02-03",
-          "times": ["9:00 AM", "1:00 PM", "5:00 PM"],
-        },
-        {
-          "date": "2026-02-04",
-          "times": ["10:00 AM", "2:00 PM"],
-        },
-        {
-          "date": "2026-02-05",
-          "times": ["11:00 AM", "3:00 PM", "6:00 PM"],
-        },
-      ],
-    },
-  };
+  bool _isLoading = true;
+  Map<String, dynamic>? mentorData;
+  String? _mentorId;
+  RealtimeChannel? _reviewsSubscription;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
     _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is String) {
+      _mentorId = args;
+      _loadMentorData();
+      _subscribeToReviews();
+    }
   }
 
   void _onScroll() {
@@ -162,9 +58,58 @@ class _MentorProfileScreenState extends State<MentorProfileScreen>
 
   @override
   void dispose() {
+    if (_mentorId != null) {
+      _realtimeService.unsubscribe('mentor_reviews_$_mentorId');
+    }
     _tabController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadMentorData() async {
+    if (_mentorId == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final data = await _databaseService.getMentorById(_mentorId!);
+      setState(() {
+        mentorData = data;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading mentor: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _subscribeToReviews() {
+    if (_mentorId == null) return;
+
+    _reviewsSubscription = _realtimeService.subscribeToMentorReviews(
+      mentorId: _mentorId!,
+      onInsert: (review) {
+        if (mentorData != null) {
+          setState(() {
+            final reviews = mentorData!['reviews'] as List<dynamic>? ?? [];
+            reviews.insert(0, review);
+            mentorData!['reviews'] = reviews;
+          });
+        }
+      },
+      onUpdate: (review) {
+        if (mentorData != null) {
+          setState(() {
+            final reviews = mentorData!['reviews'] as List<dynamic>? ?? [];
+            final index = reviews.indexWhere((r) => r['id'] == review['id']);
+            if (index != -1) {
+              reviews[index] = review;
+              mentorData!['reviews'] = reviews;
+            }
+          });
+        }
+      },
+    );
   }
 
   void _handleShare() {
@@ -181,12 +126,26 @@ class _MentorProfileScreenState extends State<MentorProfileScreen>
     Navigator.of(
       context,
       rootNavigator: true,
-    ).pushNamed('/calendar-booking-screen');
+    ).pushNamed('/calendar-booking-screen', arguments: _mentorId);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (mentorData == null) {
+      return Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        body: Center(child: Text('Mentor not found')),
+      );
+    }
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -224,7 +183,7 @@ class _MentorProfileScreenState extends State<MentorProfileScreen>
       ),
       title: _showElevation
           ? Text(
-              mentorData["name"] as String,
+              mentorData!["name"] as String,
               style: theme.textTheme.titleLarge,
             )
           : null,
@@ -250,7 +209,7 @@ class _MentorProfileScreenState extends State<MentorProfileScreen>
         child: Column(
           children: [
             Hero(
-              tag: 'mentor_${mentorData["id"]}',
+              tag: 'mentor_${mentorData!["id"]}',
               child: Container(
                 width: 30.w,
                 height: 30.w,
@@ -263,18 +222,18 @@ class _MentorProfileScreenState extends State<MentorProfileScreen>
                 ),
                 child: ClipOval(
                   child: CustomImageWidget(
-                    imageUrl: mentorData["photo"] as String,
+                    imageUrl: mentorData!["photo"] as String,
                     width: 30.w,
                     height: 30.w,
                     fit: BoxFit.cover,
-                    semanticLabel: mentorData["semanticLabel"] as String,
+                    semanticLabel: mentorData!["semanticLabel"] as String,
                   ),
                 ),
               ),
             ),
             SizedBox(height: 2.h),
             Text(
-              mentorData["name"] as String,
+              mentorData!["name"] as String,
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
@@ -282,7 +241,7 @@ class _MentorProfileScreenState extends State<MentorProfileScreen>
             ),
             SizedBox(height: 0.5.h),
             Text(
-              mentorData["title"] as String,
+              mentorData!["title"] as String,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -299,14 +258,14 @@ class _MentorProfileScreenState extends State<MentorProfileScreen>
                 ),
                 SizedBox(width: 1.w),
                 Text(
-                  '${mentorData["rating"]}',
+                  '${mentorData!["rating"]}',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 SizedBox(width: 1.w),
                 Text(
-                  '(${mentorData["reviewCount"]} reviews)',
+                  '(${mentorData!["reviewCount"]} reviews)',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -319,7 +278,7 @@ class _MentorProfileScreenState extends State<MentorProfileScreen>
               children: [
                 _buildStatCard(
                   theme,
-                  '${mentorData["totalStudents"]}+',
+                  '${mentorData!["totalStudents"]}+',
                   'Students',
                 ),
                 Container(
@@ -327,7 +286,7 @@ class _MentorProfileScreenState extends State<MentorProfileScreen>
                   height: 6.h,
                   color: theme.colorScheme.outline.withValues(alpha: 0.3),
                 ),
-                _buildStatCard(theme, '${mentorData["rating"]}', 'Rating'),
+                _buildStatCard(theme, '${mentorData!["rating"]}', 'Rating'),
                 Container(
                   width: 1,
                   height: 6.h,
@@ -335,7 +294,7 @@ class _MentorProfileScreenState extends State<MentorProfileScreen>
                 ),
                 _buildStatCard(
                   theme,
-                  mentorData["responseTime"] as String,
+                  mentorData!["responseTime"] as String,
                   'Response',
                 ),
               ],
@@ -398,24 +357,24 @@ class _MentorProfileScreenState extends State<MentorProfileScreen>
         controller: _tabController,
         children: [
           AboutTabWidget(
-            expertise: (mentorData["expertise"] as List).cast<String>(),
-            bio: mentorData["bio"] as String,
+            expertise: (mentorData!["expertise"] as List).cast<String>(),
+            bio: mentorData!["bio"] as String,
           ),
           ExperienceTabWidget(
-            education: (mentorData["education"] as List)
+            education: (mentorData!["education"] as List)
                 .cast<Map<String, dynamic>>(),
-            experience: (mentorData["experience"] as List)
+            experience: (mentorData!["experience"] as List)
                 .cast<Map<String, dynamic>>(),
-            achievements: (mentorData["achievements"] as List).cast<String>(),
+            achievements: (mentorData!["achievements"] as List).cast<String>(),
           ),
           ReviewsTabWidget(
-            reviews: (mentorData["reviews"] as List)
+            reviews: (mentorData!["reviews"] as List)
                 .cast<Map<String, dynamic>>(),
-            overallRating: mentorData["rating"] as double,
-            totalReviews: mentorData["reviewCount"] as int,
+            overallRating: mentorData!["rating"] as double,
+            totalReviews: mentorData!["reviewCount"] as int,
           ),
           AvailabilityTabWidget(
-            availability: mentorData["availability"] as Map<String, dynamic>,
+            availability: mentorData!["availability"] as Map<String, dynamic>,
             onSlotSelected: (date, time) {
               _handleBookSession();
             },

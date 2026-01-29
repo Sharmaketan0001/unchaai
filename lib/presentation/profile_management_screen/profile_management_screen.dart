@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../core/app_export.dart';
+import '../../services/auth_service.dart';
+import '../../services/biometric_auth_service.dart';
 import '../../widgets/custom_bottom_bar.dart';
 import '../../widgets/custom_icon_widget.dart';
 import './widgets/logout_button_widget.dart';
@@ -27,8 +29,10 @@ class ProfileManagementScreen extends StatefulWidget {
 }
 
 class _ProfileManagementScreenState extends State<ProfileManagementScreen> {
+  final _authService = AuthService.instance;
+  final _biometricService = BiometricAuthService.instance;
   int _currentBottomNavIndex = 2; // Profile tab active
-  final bool _isLoading = false;
+  bool _isLoading = false;
   bool _isSyncing = false;
 
   // User data
@@ -49,10 +53,78 @@ class _ProfileManagementScreenState extends State<ProfileManagementScreen> {
   // Privacy settings
   bool _profileVisibility = true;
   bool _dataSharing = false;
+  bool _biometricEnabled = false;
+  bool _biometricAvailable = false;
+  List<String> _availableBiometrics = [];
 
   // App preferences
   String _selectedLanguage = "English";
   String _selectedTheme = "System Default";
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometricStatus();
+  }
+
+  // Check biometric availability and status
+  Future<void> _checkBiometricStatus() async {
+    try {
+      final isAvailable = await _biometricService.isBiometricAvailable();
+      final isEnabled = await _authService.isBiometricEnabled();
+      final biometrics = await _authService.getAvailableBiometrics();
+
+      setState(() {
+        _biometricAvailable = isAvailable;
+        _biometricEnabled = isEnabled;
+        _availableBiometrics = biometrics;
+      });
+    } catch (e) {
+      // Biometric not available
+    }
+  }
+
+  // Toggle biometric authentication
+  Future<void> _toggleBiometric(bool value) async {
+    if (!_biometricAvailable) {
+      _showSnackBar('Biometric authentication not available on this device');
+      return;
+    }
+
+    setState(() => _isSyncing = true);
+
+    try {
+      if (value) {
+        // Enable biometric
+        final success = await _authService.enableBiometricAuth(_phoneNumber);
+        if (success) {
+          setState(() => _biometricEnabled = true);
+          _showSnackBar('Biometric authentication enabled successfully');
+        } else {
+          _showSnackBar('Failed to enable biometric authentication');
+        }
+      } else {
+        // Disable biometric
+        await _authService.disableBiometricAuth();
+        setState(() => _biometricEnabled = false);
+        _showSnackBar('Biometric authentication disabled');
+      }
+    } catch (e) {
+      _showSnackBar(e.toString().replaceAll('Exception: ', ''));
+    } finally {
+      setState(() => _isSyncing = false);
+    }
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -207,10 +279,26 @@ class _ProfileManagementScreenState extends State<ProfileManagementScreen> {
 
                         SizedBox(height: 2.h),
 
-                        // Privacy Controls Section
+                        // Privacy & Security Section
                         SettingsSectionWidget(
-                          title: "Privacy Controls",
+                          title: "Privacy & Security",
                           items: [
+                            // Biometric Authentication
+                            if (_biometricAvailable)
+                              SettingsItem(
+                                icon: _availableBiometrics.contains('Face ID')
+                                    ? 'face'
+                                    : 'fingerprint',
+                                title: "Biometric Login",
+                                subtitle: _availableBiometrics.isNotEmpty
+                                    ? "Sign in with ${_availableBiometrics.first}"
+                                    : "Use biometric authentication",
+                                trailing: Switch(
+                                  value: _biometricEnabled,
+                                  onChanged: _toggleBiometric,
+                                  activeThumbColor: theme.colorScheme.primary,
+                                ),
+                              ),
                             SettingsItem(
                               icon: 'visibility',
                               title: "Profile Visibility",
@@ -950,6 +1038,47 @@ class _ProfileManagementScreenState extends State<ProfileManagementScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _handleSignOut() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Sign Out'),
+        content: Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+
+      try {
+        await _authService.signOut();
+        if (mounted) {
+          Navigator.of(
+            context,
+            rootNavigator: true,
+          ).pushReplacementNamed('/authentication-screen');
+        }
+      } catch (e) {
+        setState(() => _isLoading = false);
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Failed to sign out: $e')));
+        }
+      }
+    }
   }
 
   /// Opens support links

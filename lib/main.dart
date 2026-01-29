@@ -4,9 +4,25 @@ import 'package:sizer/sizer.dart';
 
 import '../core/app_export.dart';
 import '../widgets/custom_error_widget.dart';
+import './services/razorpay_service.dart';
+import './services/supabase_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Supabase
+  try {
+    await SupabaseService.initialize();
+  } catch (e) {
+    debugPrint('Failed to initialize Supabase: $e');
+  }
+
+  // Initialize Razorpay
+  try {
+    RazorpayService.instance.initialize();
+  } catch (e) {
+    debugPrint('Failed to initialize Razorpay: $e');
+  }
 
   bool hasShownError = false;
 

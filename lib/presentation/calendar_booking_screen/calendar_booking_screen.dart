@@ -37,35 +37,39 @@ class _CalendarBookingScreenState extends State<CalendarBookingScreen> {
   };
 
   final List<Map<String, dynamic>> _coursePackages = [
-{ 'id': 'free_demo',
-'name': 'Free Demo Session',
-'duration': '1 Session',
-'price': 0,
-'description': 'Try before you commit',
-'badge': 'FREE',
-},
-{ 'id': '3_month',
-'name': '3 Month Course',
-'duration': '12 Sessions',
-'price': 6000,
-'description': 'Perfect for beginners',
-'badge': null,
-},
-{ 'id': '6_month',
-'name': '6 Month Course',
-'duration': '24 Sessions',
-'price': 8000,
-'description': 'Most popular choice',
-'badge': 'POPULAR',
-},
-{ 'id': '12_month',
-'name': '12 Month Course',
-'duration': '48 Sessions',
-'price': 12000,
-'description': 'Complete mastery program',
-'badge': 'BEST VALUE',
-},
-];
+    {
+      'id': 'free_demo',
+      'name': 'Free Demo Session',
+      'duration': '1 Session',
+      'price': 0,
+      'description': 'Try before you commit',
+      'badge': 'FREE',
+    },
+    {
+      'id': '3_month',
+      'name': '3 Month Course',
+      'duration': '12 Sessions',
+      'price': 6000,
+      'description': 'Perfect for beginners',
+      'badge': null,
+    },
+    {
+      'id': '6_month',
+      'name': '6 Month Course',
+      'duration': '24 Sessions',
+      'price': 8000,
+      'description': 'Most popular choice',
+      'badge': 'POPULAR',
+    },
+    {
+      'id': '12_month',
+      'name': '12 Month Course',
+      'duration': '48 Sessions',
+      'price': 12000,
+      'description': 'Complete mastery program',
+      'badge': 'BEST VALUE',
+    },
+  ];
 
   final List<DateTime> _availableDates = [
     DateTime.now().add(const Duration(days: 1)),
@@ -81,15 +85,15 @@ class _CalendarBookingScreenState extends State<CalendarBookingScreen> {
   ];
 
   final List<Map<String, dynamic>> _timeSlots = [
-{'time': '09:00 AM - 09:30 AM', 'isAvailable': true},
-{'time': '10:00 AM - 10:30 AM', 'isAvailable': true},
-{'time': '11:00 AM - 11:30 AM', 'isAvailable': false},
-{'time': '02:00 PM - 02:30 PM', 'isAvailable': true},
-{'time': '03:00 PM - 03:30 PM', 'isAvailable': true},
-{'time': '04:00 PM - 04:30 PM', 'isAvailable': true},
-{'time': '05:00 PM - 05:30 PM', 'isAvailable': false},
-{'time': '06:00 PM - 06:30 PM', 'isAvailable': true},
-];
+    {'time': '09:00 AM - 09:30 AM', 'isAvailable': true},
+    {'time': '10:00 AM - 10:30 AM', 'isAvailable': true},
+    {'time': '11:00 AM - 11:30 AM', 'isAvailable': false},
+    {'time': '02:00 PM - 02:30 PM', 'isAvailable': true},
+    {'time': '03:00 PM - 03:30 PM', 'isAvailable': true},
+    {'time': '04:00 PM - 04:30 PM', 'isAvailable': true},
+    {'time': '05:00 PM - 05:30 PM', 'isAvailable': false},
+    {'time': '06:00 PM - 06:30 PM', 'isAvailable': true},
+  ];
 
   void _onDaySelected(DateTime selectedDay, DateTime focusedDay) {
     setState(() {
@@ -127,44 +131,58 @@ class _CalendarBookingScreenState extends State<CalendarBookingScreen> {
   }
 
   Future<void> _proceedToPayment() async {
-    if (_selectedDay == null || _selectedTime == null || _selectedPackage == null) return;
+    if (_selectedDay == null ||
+        _selectedTime == null ||
+        _selectedPackage == null) {
+      return;
+    }
 
     setState(() => _isLoading = true);
 
-    await Future.delayed(const Duration(seconds: 1));
-
-    setState(() => _isLoading = false);
-
-    if (!mounted) return;
-
-    final selectedPackageData = _coursePackages.firstWhere(
-      (pkg) => pkg['id'] == _selectedPackage,
-    );
-
-    if (_selectedPackage == 'free_demo') {
-      Navigator.of(context, rootNavigator: true).pushReplacementNamed(
-        '/booking-confirmation-screen',
-        arguments: {
-          'mentorData': _mentorData,
-          'selectedDate': _selectedDay,
-          'selectedTime': _selectedTime,
-          'packageName': selectedPackageData['name'],
-          'price': 0,
-          'isFreeDemo': true,
-        },
+    try {
+      final selectedPackageData = _coursePackages.firstWhere(
+        (pkg) => pkg['id'] == _selectedPackage,
       );
-    } else {
-      Navigator.of(context, rootNavigator: true).pushNamed(
-        '/payment-screen',
-        arguments: {
-          'mentorData': _mentorData,
-          'selectedDate': _selectedDay,
-          'selectedTime': _selectedTime,
-          'packageName': selectedPackageData['name'],
-          'packageDuration': selectedPackageData['duration'],
-          'sessionPrice': selectedPackageData['price'],
-        },
-      );
+
+      if (_selectedPackage == 'free_demo') {
+        if (!mounted) return;
+
+        Navigator.of(context, rootNavigator: true).pushReplacementNamed(
+          '/booking-confirmation-screen',
+          arguments: {
+            'mentorData': _mentorData,
+            'selectedDate': _selectedDay,
+            'selectedTime': _selectedTime,
+            'packageName': selectedPackageData['name'],
+            'price': 0,
+            'isFreeDemo': true,
+            'bookingId': 'booking_placeholder',
+          },
+        );
+      } else {
+        Navigator.of(context, rootNavigator: true).pushNamed(
+          '/payment-screen',
+          arguments: {
+            'mentorData': _mentorData,
+            'selectedDate': _selectedDay,
+            'selectedTime': _selectedTime,
+            'packageName': selectedPackageData['name'],
+            'packageDuration': selectedPackageData['duration'],
+            'sessionPrice': selectedPackageData['price'],
+          },
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Booking failed. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
@@ -214,18 +232,23 @@ class _CalendarBookingScreenState extends State<CalendarBookingScreen> {
                           return Padding(
                             padding: EdgeInsets.only(bottom: 1.5.h),
                             child: InkWell(
-                              onTap: () => _onPackageSelected(package['id'] as String),
+                              onTap: () =>
+                                  _onPackageSelected(package['id'] as String),
                               borderRadius: BorderRadius.circular(12),
                               child: Container(
                                 padding: EdgeInsets.all(3.w),
                                 decoration: BoxDecoration(
                                   color: isSelected
-                                      ? theme.colorScheme.primary.withValues(alpha: 0.1)
+                                      ? theme.colorScheme.primary.withValues(
+                                          alpha: 0.1,
+                                        )
                                       : theme.colorScheme.surface,
                                   border: Border.all(
                                     color: isSelected
                                         ? theme.colorScheme.primary
-                                        : theme.colorScheme.outline.withValues(alpha: 0.2),
+                                        : theme.colorScheme.outline.withValues(
+                                            alpha: 0.2,
+                                          ),
                                     width: isSelected ? 2 : 1,
                                   ),
                                   borderRadius: BorderRadius.circular(12),
@@ -251,22 +274,28 @@ class _CalendarBookingScreenState extends State<CalendarBookingScreen> {
                                           ? Icon(
                                               Icons.check,
                                               size: 16,
-                                              color: theme.colorScheme.onPrimary,
+                                              color:
+                                                  theme.colorScheme.onPrimary,
                                             )
                                           : null,
                                     ),
                                     SizedBox(width: 3.w),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Row(
                                             children: [
                                               Text(
                                                 package['name'] as String,
-                                                style: theme.textTheme.titleSmall?.copyWith(
-                                                  fontWeight: FontWeight.w600,
-                                                ),
+                                                style: theme
+                                                    .textTheme
+                                                    .titleSmall
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
                                               ),
                                               if (package['badge'] != null) ...[
                                                 SizedBox(width: 2.w),
@@ -278,16 +307,25 @@ class _CalendarBookingScreenState extends State<CalendarBookingScreen> {
                                                   decoration: BoxDecoration(
                                                     color: isFree
                                                         ? AppTheme.successLight
-                                                        : theme.colorScheme.primary,
-                                                    borderRadius: BorderRadius.circular(4),
+                                                        : theme
+                                                              .colorScheme
+                                                              .primary,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          4,
+                                                        ),
                                                   ),
                                                   child: Text(
                                                     package['badge'] as String,
-                                                    style: theme.textTheme.labelSmall?.copyWith(
-                                                      color: Colors.white,
-                                                      fontSize: 10.sp,
-                                                      fontWeight: FontWeight.w600,
-                                                    ),
+                                                    style: theme
+                                                        .textTheme
+                                                        .labelSmall
+                                                        ?.copyWith(
+                                                          color: Colors.white,
+                                                          fontSize: 10.sp,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
                                                   ),
                                                 ),
                                               ],
@@ -296,32 +334,42 @@ class _CalendarBookingScreenState extends State<CalendarBookingScreen> {
                                           SizedBox(height: 0.5.h),
                                           Text(
                                             '${package['duration']} • ${package['description']}',
-                                            style: theme.textTheme.bodySmall?.copyWith(
-                                              color: theme.colorScheme.onSurfaceVariant,
-                                            ),
+                                            style: theme.textTheme.bodySmall
+                                                ?.copyWith(
+                                                  color: theme
+                                                      .colorScheme
+                                                      .onSurfaceVariant,
+                                                ),
                                           ),
                                         ],
                                       ),
                                     ),
                                     SizedBox(width: 2.w),
                                     Column(
-                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
                                       children: [
                                         Text(
-                                          isFree ? 'FREE' : '${package['price']} coins',
-                                          style: theme.textTheme.titleMedium?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                            color: isFree
-                                                ? AppTheme.successLight
-                                                : theme.colorScheme.primary,
-                                          ),
+                                          isFree
+                                              ? 'FREE'
+                                              : '${package['price']} coins',
+                                          style: theme.textTheme.titleMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                                color: isFree
+                                                    ? AppTheme.successLight
+                                                    : theme.colorScheme.primary,
+                                              ),
                                         ),
                                         if (!isFree)
                                           Text(
                                             '₹${package['price']}',
-                                            style: theme.textTheme.bodySmall?.copyWith(
-                                              color: theme.colorScheme.onSurfaceVariant,
-                                            ),
+                                            style: theme.textTheme.bodySmall
+                                                ?.copyWith(
+                                                  color: theme
+                                                      .colorScheme
+                                                      .onSurfaceVariant,
+                                                ),
                                           ),
                                       ],
                                     ),
@@ -373,26 +421,19 @@ class _CalendarBookingScreenState extends State<CalendarBookingScreen> {
                             Padding(
                               padding: EdgeInsets.symmetric(horizontal: 4.w),
                               child: Column(
-                                children:
-                                    (_timeSlots)
-                                        .map((slot) {
-                                          return Padding(
-                                            padding: EdgeInsets.only(
-                                              bottom: 1.5.h,
-                                            ),
-                                            child: TimeSlotWidget(
-                                              time: slot['time'] as String,
-                                              isSelected:
-                                                  _selectedTime == slot['time'],
-                                              isAvailable:
-                                                  slot['isAvailable'] as bool,
-                                              onTap: () => _onTimeSlotSelected(
-                                                slot['time'] as String,
-                                              ),
-                                            ),
-                                          );
-                                        })
-                                        .toList(),
+                                children: (_timeSlots).map((slot) {
+                                  return Padding(
+                                    padding: EdgeInsets.only(bottom: 1.5.h),
+                                    child: TimeSlotWidget(
+                                      time: slot['time'] as String,
+                                      isSelected: _selectedTime == slot['time'],
+                                      isAvailable: slot['isAvailable'] as bool,
+                                      onTap: () => _onTimeSlotSelected(
+                                        slot['time'] as String,
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
                               ),
                             ),
                           ],

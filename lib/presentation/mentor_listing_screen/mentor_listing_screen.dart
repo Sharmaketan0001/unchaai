@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:sizer/sizer.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/app_export.dart';
+import '../../services/database_service.dart';
+import '../../services/realtime_service.dart';
 import './widgets/filter_bottom_sheet_widget.dart';
 import './widgets/mentor_card_widget.dart';
 import './widgets/search_bar_widget.dart';
@@ -25,6 +28,8 @@ class MentorListingScreen extends StatefulWidget {
 class _MentorListingScreenState extends State<MentorListingScreen> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
+  final _databaseService = DatabaseService.instance;
+  final _realtimeService = RealtimeService.instance;
 
   List<Map<String, dynamic>> _mentors = [];
   List<Map<String, dynamic>> _filteredMentors = [];
@@ -33,6 +38,7 @@ class _MentorListingScreenState extends State<MentorListingScreen> {
   String _searchQuery = '';
   int _currentPage = 1;
   final int _itemsPerPage = 10;
+  RealtimeChannel? _mentorsSubscription;
 
   // Filter state
   Map<String, dynamic> _activeFilters = {
@@ -50,14 +56,42 @@ class _MentorListingScreenState extends State<MentorListingScreen> {
   void initState() {
     super.initState();
     _loadMentors();
+    _subscribeToMentors();
     _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
+    _realtimeService.unsubscribe('all_mentors');
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _subscribeToMentors() {
+    _mentorsSubscription = _realtimeService.subscribeToMentors(
+      onInsert: (mentor) {
+        setState(() {
+          _mentors.add(mentor);
+          _applyFiltersAndSort();
+        });
+      },
+      onUpdate: (mentor) {
+        setState(() {
+          final index = _mentors.indexWhere((m) => m['id'] == mentor['id']);
+          if (index != -1) {
+            _mentors[index] = mentor;
+            _applyFiltersAndSort();
+          }
+        });
+      },
+      onDelete: (mentor) {
+        setState(() {
+          _mentors.removeWhere((m) => m['id'] == mentor['id']);
+          _applyFiltersAndSort();
+        });
+      },
+    );
   }
 
   void _onScroll() {
@@ -72,191 +106,22 @@ class _MentorListingScreenState extends State<MentorListingScreen> {
   Future<void> _loadMentors() async {
     setState(() => _isLoading = true);
 
-    // Simulate API call - Replace with actual Firestore query
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      final mentors = await _databaseService.getMentors(
+        minRating: _activeFilters['minRating'],
+        maxPrice: _activeFilters['priceRange'].end,
+        limit: 50,
+      );
 
-    final mentors = [
-      {
-        "id": "1",
-        "name": "Dr. Priya Sharma",
-        "photo":
-            "https://img.rocket.new/generatedImages/rocket_gen_img_117f9c471-1763300920090.png",
-        "semanticLabel":
-            "Professional woman with long dark hair wearing glasses and business attire",
-        "expertise": ["Data Science", "Machine Learning", "Python"],
-        "experience": 8,
-        "rating": 4.9,
-        "reviewCount": 156,
-        "hourlyRate": 1500,
-        "availability": "Available Today",
-        "isAvailable": true,
-        "bio":
-            "PhD in Computer Science with 8+ years of industry experience in AI/ML",
-        "isFavorite": false,
-      },
-      {
-        "id": "2",
-        "name": "Rajesh Kumar",
-        "photo":
-            "https://img.rocket.new/generatedImages/rocket_gen_img_10ffc0fb5-1763299748785.png",
-        "semanticLabel":
-            "Professional man with short black hair wearing blue shirt and smiling",
-        "expertise": ["Web Development", "React", "Node.js"],
-        "experience": 6,
-        "rating": 4.8,
-        "reviewCount": 142,
-        "hourlyRate": 1200,
-        "availability": "Available Tomorrow",
-        "isAvailable": true,
-        "bio": "Full-stack developer specializing in modern web technologies",
-        "isFavorite": false,
-      },
-      {
-        "id": "3",
-        "name": "Ananya Desai",
-        "photo":
-            "https://img.rocket.new/generatedImages/rocket_gen_img_128683b30-1763296674609.png",
-        "semanticLabel":
-            "Young woman with shoulder-length brown hair wearing casual attire",
-        "expertise": ["Digital Marketing", "SEO", "Content Strategy"],
-        "experience": 5,
-        "rating": 4.7,
-        "reviewCount": 98,
-        "hourlyRate": 1000,
-        "availability": "Available This Week",
-        "isAvailable": true,
-        "bio":
-            "Marketing strategist with proven track record in digital campaigns",
-        "isFavorite": false,
-      },
-      {
-        "id": "4",
-        "name": "Vikram Singh",
-        "photo":
-            "https://img.rocket.new/generatedImages/rocket_gen_img_18a65e4f0-1763293568983.png",
-        "semanticLabel":
-            "Professional man with beard wearing formal shirt outdoors",
-        "expertise": ["Mobile Development", "Flutter", "iOS"],
-        "experience": 7,
-        "rating": 4.9,
-        "reviewCount": 178,
-        "hourlyRate": 1400,
-        "availability": "Available Today",
-        "isAvailable": true,
-        "bio":
-            "Senior mobile developer with expertise in cross-platform solutions",
-        "isFavorite": false,
-      },
-      {
-        "id": "5",
-        "name": "Meera Patel",
-        "photo":
-            "https://img.rocket.new/generatedImages/rocket_gen_img_13b401b81-1763293456584.png",
-        "semanticLabel":
-            "Woman with long dark hair wearing professional attire and smiling",
-        "expertise": ["UI/UX Design", "Figma", "Product Design"],
-        "experience": 4,
-        "rating": 4.8,
-        "reviewCount": 112,
-        "hourlyRate": 1100,
-        "availability": "Available Tomorrow",
-        "isAvailable": true,
-        "bio": "Product designer focused on user-centered design solutions",
-        "isFavorite": false,
-      },
-      {
-        "id": "6",
-        "name": "Arjun Reddy",
-        "photo":
-            "https://img.rocket.new/generatedImages/rocket_gen_img_1404a20cb-1763293681238.png",
-        "semanticLabel":
-            "Young man with short hair wearing casual shirt outdoors",
-        "expertise": ["Cloud Computing", "AWS", "DevOps"],
-        "experience": 9,
-        "rating": 4.9,
-        "reviewCount": 203,
-        "hourlyRate": 1600,
-        "availability": "Available Today",
-        "isAvailable": true,
-        "bio":
-            "Cloud architect with extensive experience in scalable infrastructure",
-        "isFavorite": false,
-      },
-      {
-        "id": "7",
-        "name": "Kavya Iyer",
-        "photo":
-            "https://img.rocket.new/generatedImages/rocket_gen_img_19a5467f2-1763301182950.png",
-        "semanticLabel":
-            "Professional woman with glasses and dark hair in business setting",
-        "expertise": ["Business Analytics", "Tableau", "SQL"],
-        "experience": 6,
-        "rating": 4.7,
-        "reviewCount": 134,
-        "hourlyRate": 1250,
-        "availability": "Available This Week",
-        "isAvailable": true,
-        "bio": "Data analyst helping businesses make data-driven decisions",
-        "isFavorite": false,
-      },
-      {
-        "id": "8",
-        "name": "Siddharth Joshi",
-        "photo":
-            "https://img.rocket.new/generatedImages/rocket_gen_img_1c583d45e-1763293763846.png",
-        "semanticLabel":
-            "Man with short dark hair wearing casual attire and smiling",
-        "expertise": ["Cybersecurity", "Ethical Hacking", "Network Security"],
-        "experience": 10,
-        "rating": 4.9,
-        "reviewCount": 189,
-        "hourlyRate": 1700,
-        "availability": "Available Tomorrow",
-        "isAvailable": true,
-        "bio": "Cybersecurity expert with certifications in ethical hacking",
-        "isFavorite": false,
-      },
-      {
-        "id": "9",
-        "name": "Nisha Gupta",
-        "photo":
-            "https://img.rocket.new/generatedImages/rocket_gen_img_1f3387869-1763301386730.png",
-        "semanticLabel":
-            "Young woman with long hair wearing professional attire",
-        "expertise": ["Content Writing", "Copywriting", "SEO Writing"],
-        "experience": 3,
-        "rating": 4.6,
-        "reviewCount": 87,
-        "hourlyRate": 900,
-        "availability": "Available Today",
-        "isAvailable": true,
-        "bio": "Creative writer specializing in engaging digital content",
-        "isFavorite": false,
-      },
-      {
-        "id": "10",
-        "name": "Aditya Verma",
-        "photo":
-            "https://img.rocket.new/generatedImages/rocket_gen_img_12c1d7f8f-1763294585737.png",
-        "semanticLabel": "Professional man with beard wearing formal attire",
-        "expertise": ["Blockchain", "Cryptocurrency", "Smart Contracts"],
-        "experience": 5,
-        "rating": 4.8,
-        "reviewCount": 145,
-        "hourlyRate": 1350,
-        "availability": "Available This Week",
-        "isAvailable": true,
-        "bio":
-            "Blockchain developer with expertise in decentralized applications",
-        "isFavorite": false,
-      },
-    ];
-
-    setState(() {
-      _mentors = mentors;
-      _filteredMentors = mentors.take(_itemsPerPage).toList();
-      _isLoading = false;
-    });
+      setState(() {
+        _mentors = mentors;
+        _applyFiltersAndSort();
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading mentors: $e');
+      setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _loadMoreMentors() async {
@@ -293,105 +158,61 @@ class _MentorListingScreenState extends State<MentorListingScreen> {
   }
 
   void _applyFiltersAndSort() {
-    List<Map<String, dynamic>> filtered = List.from(_mentors);
+    var filtered = List<Map<String, dynamic>>.from(_mentors);
 
     // Apply search filter
     if (_searchQuery.isNotEmpty) {
       filtered = filtered.where((mentor) {
-        final name = (mentor['name'] as String).toLowerCase();
-        final expertise = (mentor['expertise'] as List).join(' ').toLowerCase();
-        return name.contains(_searchQuery) || expertise.contains(_searchQuery);
-      }).toList();
-    }
-
-    // Apply category filter
-    if ((_activeFilters['categories'] as List).isNotEmpty) {
-      filtered = filtered.where((mentor) {
-        final mentorExpertise = mentor['expertise'] as List;
-        return (_activeFilters['categories'] as List).any(
-          (category) => mentorExpertise.any(
-            (exp) => (exp as String).toLowerCase().contains(
-              (category as String).toLowerCase(),
-            ),
-          ),
-        );
-      }).toList();
-    }
-
-    // Apply experience filter
-    if ((_activeFilters['experienceLevel'] as List).isNotEmpty) {
-      filtered = filtered.where((mentor) {
-        final experience = mentor['experience'] as int;
-        final levels = _activeFilters['experienceLevel'] as List;
-
-        if (levels.contains('Entry (0-2 years)') && experience <= 2) {
-          return true;
-        }
-        if (levels.contains('Mid (3-5 years)') &&
-            experience >= 3 &&
-            experience <= 5) {
-          return true;
-        }
-        if (levels.contains('Senior (6-10 years)') &&
-            experience >= 6 &&
-            experience <= 10) {
-          return true;
-        }
-        if (levels.contains('Expert (10+ years)') && experience > 10) {
-          return true;
-        }
-
-        return false;
+        final userProfile = mentor['user_profiles'] as Map<String, dynamic>?;
+        final name = (userProfile?['full_name'] ?? '').toString().toLowerCase();
+        final title = (mentor['title'] ?? '').toString().toLowerCase();
+        final query = _searchQuery.toLowerCase();
+        return name.contains(query) || title.contains(query);
       }).toList();
     }
 
     // Apply rating filter
-    final minRating = _activeFilters['minRating'] as double;
-    if (minRating > 0) {
-      filtered = filtered
-          .where((mentor) => (mentor['rating'] as double) >= minRating)
-          .toList();
-    }
-
-    // Apply price range filter
-    final priceRange = _activeFilters['priceRange'] as RangeValues;
-    filtered = filtered.where((mentor) {
-      final rate = mentor['hourlyRate'] as int;
-      return rate >= priceRange.start && rate <= priceRange.end;
-    }).toList();
-
-    // Apply availability filter
-    if ((_activeFilters['availability'] as List).isNotEmpty) {
+    if (_activeFilters['minRating'] > 0) {
       filtered = filtered.where((mentor) {
-        final availability = mentor['availability'] as String;
-        return (_activeFilters['availability'] as List).any(
-          (filter) => availability.contains(filter as String),
-        );
+        final rating = (mentor['rating'] ?? 0.0) as num;
+        return rating >= _activeFilters['minRating'];
       }).toList();
     }
 
-    // Apply sorting
-    filtered.sort((a, b) {
-      switch (_sortBy) {
-        case 'rating':
-          return (b['rating'] as double).compareTo(a['rating'] as double);
-        case 'price':
-          return (a['hourlyRate'] as int).compareTo(b['hourlyRate'] as int);
-        case 'experience':
-          return (b['experience'] as int).compareTo(a['experience'] as int);
-        case 'availability':
-          final aAvailable = a['isAvailable'] as bool;
-          final bAvailable = b['isAvailable'] as bool;
-          if (aAvailable == bAvailable) return 0;
-          return aAvailable ? -1 : 1;
-        default:
-          return 0;
-      }
-    });
+    // Apply price filter
+    final priceRange = _activeFilters['priceRange'] as RangeValues;
+    filtered = filtered.where((mentor) {
+      final price = (mentor['hourly_rate'] ?? 0) as num;
+      return price >= priceRange.start && price <= priceRange.end;
+    }).toList();
+
+    // Sort
+    switch (_sortBy) {
+      case 'rating':
+        filtered.sort((a, b) {
+          final ratingA = (a['rating'] ?? 0.0) as num;
+          final ratingB = (b['rating'] ?? 0.0) as num;
+          return ratingB.compareTo(ratingA);
+        });
+        break;
+      case 'price':
+        filtered.sort((a, b) {
+          final priceA = (a['hourly_rate'] ?? 0) as num;
+          final priceB = (b['hourly_rate'] ?? 0) as num;
+          return priceA.compareTo(priceB);
+        });
+        break;
+      case 'experience':
+        filtered.sort((a, b) {
+          final expA = (a['years_of_experience'] ?? 0) as num;
+          final expB = (b['years_of_experience'] ?? 0) as num;
+          return expB.compareTo(expA);
+        });
+        break;
+    }
 
     setState(() {
-      _filteredMentors = filtered.take(_itemsPerPage).toList();
-      _currentPage = 1;
+      _filteredMentors = filtered.take(_currentPage * _itemsPerPage).toList();
     });
   }
 
