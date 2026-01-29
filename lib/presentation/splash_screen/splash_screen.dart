@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../core/app_export.dart';
+import '../../core/services/auth_service.dart';
 import '../../widgets/custom_icon_widget.dart';
 
 /// Splash Screen for UnchaAi EdTech mentorship platform
@@ -108,8 +109,8 @@ class _SplashScreenState extends State<SplashScreen>
   void _navigateToNextScreen() {
     if (!mounted) return;
 
-    // Simulate authentication check
-    final bool isAuthenticated = false; // Replace with actual auth check
+    // Check Supabase authentication state
+    final bool isAuthenticated = AuthService.isLoggedIn;
 
     // Provide haptic feedback
     HapticFeedback.lightImpact();

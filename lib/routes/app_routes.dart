@@ -9,9 +9,9 @@ import '../presentation/mentor_profile_screen/mentor_profile_screen.dart';
 import '../presentation/booking_confirmation_screen/booking_confirmation_screen.dart';
 import '../presentation/my_sessions_screen/my_sessions_screen.dart';
 import '../presentation/home_screen/home_screen.dart';
+import '../presentation/profile_completion_screen/profile_completion_screen.dart';
 
 class AppRoutes {
-  // TODO: Add your routes here
   static const String initial = '/';
   static const String mentorListing = '/mentor-listing-screen';
   static const String splash = '/splash-screen';
@@ -23,6 +23,7 @@ class AppRoutes {
   static const String bookingConfirmation = '/booking-confirmation-screen';
   static const String mySessions = '/my-sessions-screen';
   static const String home = '/home-screen';
+  static const String profileCompletion = '/profile-completion-screen';
 
   static Map<String, WidgetBuilder> routes = {
     initial: (context) => const SplashScreen(),
@@ -36,6 +37,15 @@ class AppRoutes {
     bookingConfirmation: (context) => const BookingConfirmationScreen(),
     mySessions: (context) => const MySessionsScreen(),
     home: (context) => const HomeScreen(),
-    // TODO: Add your other routes here
+    // Profile completion requires phoneNumber argument, handled via Navigator.push
   };
+
+  /// Navigate to profile completion with phone number
+  static void navigateToProfileCompletion(BuildContext context, String phoneNumber) {
+    Navigator.of(context, rootNavigator: true).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => ProfileCompletionScreen(phoneNumber: phoneNumber),
+      ),
+    );
+  }
 }

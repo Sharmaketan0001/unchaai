@@ -5,7 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../core/app_export.dart';
+import '../../core/services/auth_service.dart';
+import '../../data/repositories/user_repository.dart';
 import '../../widgets/custom_icon_widget.dart';
+import '../profile_completion_screen/profile_completion_screen.dart';
 import './widgets/otp_input_widget.dart';
 import './widgets/phone_input_widget.dart';
 
@@ -83,7 +86,7 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
     }
   }
 
-  /// Send OTP via WhatsApp
+  /// Send OTP via Supabase
   Future<void> _sendOtp() async {
     if (!_isPhoneValid || _isLoadingSendOtp) return;
 
@@ -95,29 +98,9 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
     try {
       final phoneNumber = '+91${_phoneController.text.trim()}';
 
-      // Simulated WhatsApp OTP API call
-      await Future.delayed(const Duration(seconds: 2));
+      // Send OTP via Supabase
+      await AuthService.sendOtp(phoneNumber);
 
-      // In production, integrate with Firebase Phone Authentication
-      // await FirebaseAuth.instance.verifyPhoneNumber(
-      //   phoneNumber: phoneNumber,
-      //   verificationCompleted: (PhoneAuthCredential credential) async {
-      //     await FirebaseAuth.instance.signInWithCredential(credential);
-      //     _navigateToHome();
-      //   },
-      //   verificationFailed: (FirebaseAuthException e) {
-      //     setState(() => _errorMessage = e.message);
-      //   },
-      //   codeSent: (String verificationId, int? resendToken) {
-      //     setState(() {
-      //       _showOtpSection = true;
-      //       _startResendCountdown();
-      //     });
-      //   },
-      //   codeAutoRetrievalTimeout: (String verificationId) {},
-      // );
-
-      // Mock success response
       setState(() {
         _showOtpSection = true;
         _isLoadingSendOtp = false;
@@ -128,19 +111,20 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
 
       // Show success feedback
       HapticFeedback.lightImpact();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('OTP sent to WhatsApp (+91 ${_phoneController.text})'),
-          backgroundColor: Theme.of(context).colorScheme.tertiary,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('OTP sent to $phoneNumber'),
+            backgroundColor: Theme.of(context).colorScheme.tertiary,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     } catch (e) {
       setState(() {
         _isLoadingSendOtp = false;
-        _errorMessage =
-            'Failed to send OTP. Please check your network connection.';
+        _errorMessage = 'Failed to send OTP: ${e.toString()}';
       });
     }
   }
@@ -167,7 +151,7 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
     await _sendOtp();
   }
 
-  /// Verify OTP and complete authentication
+  /// Verify OTP and complete authentication with Supabase
   Future<void> _verifyOtp() async {
     final otp = _otpController.text.trim();
 
@@ -179,24 +163,33 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
     });
 
     try {
-      // Simulated OTP verification
-      await Future.delayed(const Duration(seconds: 2));
+      final phoneNumber = '+91${_phoneController.text.trim()}';
 
-      // In production, verify with Firebase
-      // PhoneAuthCredential credential = PhoneAuthProvider.credential(
-      //   verificationId: verificationId,
-      //   smsCode: otp,
-      // );
-      // await FirebaseAuth.instance.signInWithCredential(credential);
+      // Verify OTP with Supabase
+      final response = await AuthService.verifyOtp(phoneNumber, otp);
 
-      // Mock success - navigate to home
-      HapticFeedback.mediumImpact();
+      if (response.user != null) {
+        HapticFeedback.mediumImpact();
 
-      if (mounted) {
-        Navigator.of(
-          context,
-          rootNavigator: true,
-        ).pushReplacementNamed('/home-screen');
+        // Check if user already has a profile
+        final existingProfile = await UserRepository.getUserProfile(response.user!.id);
+
+        if (mounted) {
+          if (existingProfile != null) {
+            // Existing user - go to home
+            Navigator.of(context, rootNavigator: true)
+                .pushReplacementNamed('/home-screen');
+          } else {
+            // New user - go to profile completion
+            Navigator.of(context, rootNavigator: true).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => ProfileCompletionScreen(phoneNumber: phoneNumber),
+              ),
+            );
+          }
+        }
+      } else {
+        throw Exception('Authentication failed');
       }
     } catch (e) {
       setState(() {
