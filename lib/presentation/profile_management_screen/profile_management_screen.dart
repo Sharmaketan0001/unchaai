@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../core/app_export.dart';
-import '../../widgets/custom_bottom_bar.dart';
+
 import '../../widgets/custom_icon_widget.dart';
 import './widgets/logout_button_widget.dart';
 import './widgets/profile_header_widget.dart';
@@ -27,7 +27,7 @@ class ProfileManagementScreen extends StatefulWidget {
 }
 
 class _ProfileManagementScreenState extends State<ProfileManagementScreen> {
-  int _currentBottomNavIndex = 2; // Profile tab active
+
   final bool _isLoading = false;
   bool _isSyncing = false;
 
@@ -58,240 +58,238 @@ class _ProfileManagementScreenState extends State<ProfileManagementScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: _isLoading
-          ? Center(
-              child: CircularProgressIndicator(
-                color: theme.colorScheme.primary,
-              ),
-            )
-          : Column(
-              children: [
-                // Profile Header
-                ProfileHeaderWidget(
-                  userName: _userName,
-                  phoneNumber: _phoneNumber,
-                  accountCreationDate: _accountCreationDate,
-                  profileImageUrl: _profileImageUrl,
-                  isSyncing: _isSyncing,
-                  onPhotoUpdate: _handlePhotoUpdate,
-                ),
+    if(_isLoading) {
+      return Center(
+        child: CircularProgressIndicator(
+          color: theme.colorScheme.primary,
+        ),
+      );
+    }
 
-                // Settings Content
-                Expanded(
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    child: Column(
-                      children: [
-                        SizedBox(height: 2.h),
+    return Container(
+      color: theme.scaffoldBackgroundColor,
+      child: Column(
+        children: [
+          // Profile Header
+          ProfileHeaderWidget(
+            userName: _userName,
+            phoneNumber: _phoneNumber,
+            accountCreationDate: _accountCreationDate,
+            profileImageUrl: _profileImageUrl,
+            isSyncing: _isSyncing,
+            onPhotoUpdate: _handlePhotoUpdate,
+          ),
 
-                        // Account Information Section
-                        SettingsSectionWidget(
-                          title: "Account Information",
-                          items: [
-                            SettingsItem(
-                              icon: 'person',
-                              title: "Full Name",
-                              subtitle: _userName,
-                              onTap: () => _editAccountField(
-                                context,
-                                "Full Name",
-                                _userName,
-                                (value) => setState(() => _userName = value),
-                              ),
-                            ),
-                            SettingsItem(
-                              icon: 'email',
-                              title: "Email Address",
-                              subtitle: _email.isEmpty ? "Add email" : _email,
-                              onTap: () => _editAccountField(
-                                context,
-                                "Email Address",
-                                _email,
-                                (value) => setState(() => _email = value),
-                                isEmail: true,
-                              ),
-                            ),
-                            SettingsItem(
-                              icon: 'school',
-                              title: "Academic Background",
-                              subtitle: _academicBackground.isEmpty
-                                  ? "Add background"
-                                  : _academicBackground,
-                              onTap: () => _editAccountField(
-                                context,
-                                "Academic Background",
-                                _academicBackground,
-                                (value) =>
-                                    setState(() => _academicBackground = value),
-                              ),
-                            ),
-                          ],
+          // Settings Content
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                children: [
+                  SizedBox(height: 2.h),
+
+                  // Account Information Section
+                  SettingsSectionWidget(
+                    title: "Account Information",
+                    items: [
+                      SettingsItem(
+                        icon: 'person',
+                        title: "Full Name",
+                        subtitle: _userName,
+                        onTap: () => _editAccountField(
+                          context,
+                          "Full Name",
+                          _userName,
+                          (value) => setState(() => _userName = value),
                         ),
-
-                        SizedBox(height: 2.h),
-
-                        // Notification Settings Section
-                        SettingsSectionWidget(
-                          title: "Notification Settings",
-                          items: [
-                            SettingsItem(
-                              icon: 'chat',
-                              title: "WhatsApp Messages",
-                              subtitle: "Booking confirmations and updates",
-                              trailing: Switch(
-                                value: _whatsappNotifications,
-                                onChanged: (value) => setState(
-                                  () => _whatsappNotifications = value,
-                                ),
-                                activeThumbColor: theme.colorScheme.primary,
-                              ),
-                            ),
-                            SettingsItem(
-                              icon: 'notifications',
-                              title: "Session Reminders",
-                              subtitle: "Get notified before sessions",
-                              trailing: Switch(
-                                value: _sessionReminders,
-                                onChanged: (value) =>
-                                    setState(() => _sessionReminders = value),
-                                activeThumbColor: theme.colorScheme.primary,
-                              ),
-                            ),
-                            SettingsItem(
-                              icon: 'person_add',
-                              title: "Mentor Updates",
-                              subtitle: "New mentors and availability",
-                              trailing: Switch(
-                                value: _mentorUpdates,
-                                onChanged: (value) =>
-                                    setState(() => _mentorUpdates = value),
-                                activeThumbColor: theme.colorScheme.primary,
-                              ),
-                            ),
-                            SettingsItem(
-                              icon: 'campaign',
-                              title: "Promotional Content",
-                              subtitle: "Offers and announcements",
-                              trailing: Switch(
-                                value: _promotionalContent,
-                                onChanged: (value) =>
-                                    setState(() => _promotionalContent = value),
-                                activeThumbColor: theme.colorScheme.primary,
-                              ),
-                            ),
-                          ],
+                      ),
+                      SettingsItem(
+                        icon: 'email',
+                        title: "Email Address",
+                        subtitle: _email.isEmpty ? "Add email" : _email,
+                        onTap: () => _editAccountField(
+                          context,
+                          "Email Address",
+                          _email,
+                          (value) => setState(() => _email = value),
+                          isEmail: true,
                         ),
-
-                        SizedBox(height: 2.h),
-
-                        // Payment Methods Section
-                        SettingsSectionWidget(
-                          title: "Payment Methods",
-                          items: [
-                            SettingsItem(
-                              icon: 'credit_card',
-                              title: "Saved Cards",
-                              subtitle: "Manage payment cards",
-                              onTap: () => _showPaymentMethods(context),
-                            ),
-                            SettingsItem(
-                              icon: 'account_balance',
-                              title: "UPI Details",
-                              subtitle: "Manage UPI accounts",
-                              onTap: () => _showUPIMethods(context),
-                            ),
-                          ],
+                      ),
+                      SettingsItem(
+                        icon: 'school',
+                        title: "Academic Background",
+                        subtitle: _academicBackground.isEmpty
+                            ? "Add background"
+                            : _academicBackground,
+                        onTap: () => _editAccountField(
+                          context,
+                          "Academic Background",
+                          _academicBackground,
+                          (value) =>
+                              setState(() => _academicBackground = value),
                         ),
-
-                        SizedBox(height: 2.h),
-
-                        // Privacy Controls Section
-                        SettingsSectionWidget(
-                          title: "Privacy Controls",
-                          items: [
-                            SettingsItem(
-                              icon: 'visibility',
-                              title: "Profile Visibility",
-                              subtitle: "Control who can see your profile",
-                              trailing: Switch(
-                                value: _profileVisibility,
-                                onChanged: (value) =>
-                                    setState(() => _profileVisibility = value),
-                                activeThumbColor: theme.colorScheme.primary,
-                              ),
-                            ),
-                            SettingsItem(
-                              icon: 'share',
-                              title: "Data Sharing",
-                              subtitle: "Share data for better experience",
-                              trailing: Switch(
-                                value: _dataSharing,
-                                onChanged: (value) =>
-                                    setState(() => _dataSharing = value),
-                                activeThumbColor: theme.colorScheme.primary,
-                              ),
-                            ),
-                            SettingsItem(
-                              icon: 'delete_forever',
-                              title: "Delete Account",
-                              subtitle: "Permanently delete your account",
-                              onTap: () => _showDeleteAccountDialog(context),
-                              isDestructive: true,
-                            ),
-                          ],
-                        ),
-
-                        SizedBox(height: 2.h),
-
-                        // App Preferences Section
-                        SettingsSectionWidget(
-                          title: "App Preferences",
-                          items: [
-                            SettingsItem(
-                              icon: 'language',
-                              title: "Language",
-                              subtitle: _selectedLanguage,
-                              onTap: () => _showLanguageSelector(context),
-                            ),
-                            SettingsItem(
-                              icon: 'palette',
-                              title: "Theme",
-                              subtitle: _selectedTheme,
-                              onTap: () => _showThemeSelector(context),
-                            ),
-                            SettingsItem(
-                              icon: 'accessibility',
-                              title: "Accessibility",
-                              subtitle: "Font size and display options",
-                              onTap: () => _showAccessibilitySettings(context),
-                            ),
-                          ],
-                        ),
-
-                        SizedBox(height: 3.h),
-
-                        // Logout Button
-                        LogoutButtonWidget(
-                          onLogout: () => _showLogoutDialog(context),
-                        ),
-
-                        SizedBox(height: 2.h),
-
-                        // Footer Information
-                        _buildFooter(theme),
-
-                        SizedBox(height: 4.h),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
+
+                  SizedBox(height: 2.h),
+
+                  // Notification Settings Section
+                  SettingsSectionWidget(
+                    title: "Notification Settings",
+                    items: [
+                      SettingsItem(
+                        icon: 'chat',
+                        title: "WhatsApp Messages",
+                        subtitle: "Booking confirmations and updates",
+                        trailing: Switch(
+                          value: _whatsappNotifications,
+                          onChanged: (value) => setState(
+                            () => _whatsappNotifications = value,
+                          ),
+                          activeThumbColor: theme.colorScheme.primary,
+                        ),
+                      ),
+                      SettingsItem(
+                        icon: 'notifications',
+                        title: "Session Reminders",
+                        subtitle: "Get notified before sessions",
+                        trailing: Switch(
+                          value: _sessionReminders,
+                          onChanged: (value) =>
+                              setState(() => _sessionReminders = value),
+                          activeThumbColor: theme.colorScheme.primary,
+                        ),
+                      ),
+                      SettingsItem(
+                        icon: 'person_add',
+                        title: "Mentor Updates",
+                        subtitle: "New mentors and availability",
+                        trailing: Switch(
+                          value: _mentorUpdates,
+                          onChanged: (value) =>
+                              setState(() => _mentorUpdates = value),
+                          activeThumbColor: theme.colorScheme.primary,
+                        ),
+                      ),
+                      SettingsItem(
+                        icon: 'campaign',
+                        title: "Promotional Content",
+                        subtitle: "Offers and announcements",
+                        trailing: Switch(
+                          value: _promotionalContent,
+                          onChanged: (value) =>
+                              setState(() => _promotionalContent = value),
+                          activeThumbColor: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 2.h),
+
+                  // Payment Methods Section
+                  SettingsSectionWidget(
+                    title: "Payment Methods",
+                    items: [
+                      SettingsItem(
+                        icon: 'credit_card',
+                        title: "Saved Cards",
+                        subtitle: "Manage payment cards",
+                        onTap: () => _showPaymentMethods(context),
+                      ),
+                      SettingsItem(
+                        icon: 'account_balance',
+                        title: "UPI Details",
+                        subtitle: "Manage UPI accounts",
+                        onTap: () => _showUPIMethods(context),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 2.h),
+
+                  // Privacy Controls Section
+                  SettingsSectionWidget(
+                    title: "Privacy Controls",
+                    items: [
+                      SettingsItem(
+                        icon: 'visibility',
+                        title: "Profile Visibility",
+                        subtitle: "Control who can see your profile",
+                        trailing: Switch(
+                          value: _profileVisibility,
+                          onChanged: (value) =>
+                              setState(() => _profileVisibility = value),
+                          activeThumbColor: theme.colorScheme.primary,
+                        ),
+                      ),
+                      SettingsItem(
+                        icon: 'share',
+                        title: "Data Sharing",
+                        subtitle: "Share data for better experience",
+                        trailing: Switch(
+                          value: _dataSharing,
+                          onChanged: (value) =>
+                              setState(() => _dataSharing = value),
+                          activeThumbColor: theme.colorScheme.primary,
+                        ),
+                      ),
+                      SettingsItem(
+                        icon: 'delete_forever',
+                        title: "Delete Account",
+                        subtitle: "Permanently delete your account",
+                        onTap: () => _showDeleteAccountDialog(context),
+                        isDestructive: true,
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 2.h),
+
+                  // App Preferences Section
+                  SettingsSectionWidget(
+                    title: "App Preferences",
+                    items: [
+                      SettingsItem(
+                        icon: 'language',
+                        title: "Language",
+                        subtitle: _selectedLanguage,
+                        onTap: () => _showLanguageSelector(context),
+                      ),
+                      SettingsItem(
+                        icon: 'palette',
+                        title: "Theme",
+                        subtitle: _selectedTheme,
+                        onTap: () => _showThemeSelector(context),
+                      ),
+                      SettingsItem(
+                        icon: 'accessibility',
+                        title: "Accessibility",
+                        subtitle: "Font size and display options",
+                        onTap: () => _showAccessibilitySettings(context),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 3.h),
+
+                  // Logout Button
+                  LogoutButtonWidget(
+                    onLogout: () => _showLogoutDialog(context),
+                  ),
+
+                  SizedBox(height: 2.h),
+
+                  // Footer Information
+                  _buildFooter(theme),
+
+                  SizedBox(height: 4.h),
+                ],
+              ),
             ),
-      bottomNavigationBar: CustomBottomBar(
-        currentIndex: _currentBottomNavIndex,
-        onTap: _onBottomNavTap,
+          ),
+        ],
       ),
     );
   }
@@ -358,30 +356,7 @@ class _ProfileManagementScreenState extends State<ProfileManagementScreen> {
     );
   }
 
-  /// Handles bottom navigation tap
-  void _onBottomNavTap(int index) {
-    if (index == _currentBottomNavIndex) return;
 
-    setState(() => _currentBottomNavIndex = index);
-
-    switch (index) {
-      case 0:
-        Navigator.of(
-          context,
-          rootNavigator: true,
-        ).pushReplacementNamed('/home-screen');
-        break;
-      case 1:
-        Navigator.of(
-          context,
-          rootNavigator: true,
-        ).pushReplacementNamed('/my-sessions-screen');
-        break;
-      case 2:
-        // Already on profile screen
-        break;
-    }
-  }
 
   /// Handles photo update from camera or gallery
   Future<void> _handlePhotoUpdate(String source) async {

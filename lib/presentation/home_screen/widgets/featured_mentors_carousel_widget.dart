@@ -121,7 +121,7 @@ class _FeaturedMentorsCarouselWidgetState
             return _buildMentorCard(context, mentor);
           },
           options: CarouselOptions(
-            height: 28.h,
+            height: 32.h,
             viewportFraction: 0.85,
             enlargeCenterPage: true,
             enableInfiniteScroll: true,
@@ -189,7 +189,7 @@ class _FeaturedMentorsCarouselWidgetState
                   child: CustomImageWidget(
                     imageUrl: mentor["photo"] as String,
                     width: double.infinity,
-                    height: 16.h,
+                    height: 15.h,
                     fit: BoxFit.cover,
                     semanticLabel: mentor["semanticLabel"] as String,
                   ),
